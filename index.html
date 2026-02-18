@@ -1,0 +1,176 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Community Plays Pokémon - Controller</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.7.2/socket.io.js"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap');
+        
+        body {
+            background-color: #1a1a1a;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+
+        .retro-font {
+            font-family: 'Press Start 2P', cursive;
+        }
+
+        .gb-button {
+            transition: transform 0.1s, box-shadow 0.1s;
+            user-select: none;
+            touch-action: manipulation;
+        }
+
+        .gb-button:active {
+            transform: translateY(2px);
+            box-shadow: none !important;
+        }
+
+        .d-pad-btn {
+            background: #333;
+            width: 50px;
+            height: 50px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            border-radius: 4px;
+            box-shadow: 0 4px 0 #000;
+        }
+
+        .action-btn {
+            width: 60px;
+            height: 60px;
+            border-radius: 50%;
+            color: white;
+            font-weight: bold;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            box-shadow: 0 4px 0 #7a0000;
+        }
+
+        .log-container {
+            height: 200px;
+            overflow-y: auto;
+            scrollbar-width: thin;
+            scrollbar-color: #444 #222;
+        }
+    </style>
+</head>
+<body class="flex flex-col items-center justify-center min-h-screen p-4 text-white">
+
+    <div class="w-full max-w-md bg-gray-800 p-6 rounded-3xl border-8 border-gray-700 shadow-2xl">
+        <!-- Header -->
+        <div class="text-center mb-8">
+            <h1 class="retro-font text-xs text-yellow-400 mb-2">COMMUNITY PLAYS</h1>
+            <h2 class="retro-font text-lg text-red-500">POKÉMON</h2>
+        </div>
+
+        <!-- Connection Status -->
+        <div id="status" class="text-center text-xs mb-4 text-red-400">
+            Disconnected from Server
+        </div>
+
+        <!-- Controller Layout -->
+        <div class="grid grid-cols-2 gap-8 items-center mb-8">
+            <!-- D-PAD -->
+            <div class="relative w-40 h-40 flex items-center justify-center">
+                <button onclick="sendInput('up')" class="gb-button d-pad-btn absolute top-0">▲</button>
+                <button onclick="sendInput('left')" class="gb-button d-pad-btn absolute left-0">◀</button>
+                <button onclick="sendInput('right')" class="gb-button d-pad-btn absolute right-0">▶</button>
+                <button onclick="sendInput('down')" class="gb-button d-pad-btn absolute bottom-0">▼</button>
+                <div class="w-10 h-10 bg-gray-900 rounded-sm"></div>
+            </div>
+
+            <!-- A/B Buttons -->
+            <div class="flex gap-4 justify-center items-center">
+                <div class="text-center">
+                    <button onclick="sendInput('b')" class="gb-button action-btn bg-red-600 mb-1">B</button>
+                    <span class="text-xs text-gray-400">CANCEL</span>
+                </div>
+                <div class="text-center">
+                    <button id="a-button" onclick="sendInput('a')" class="gb-button action-btn bg-red-600 mb-1">A</button>
+                    <span class="text-xs text-gray-400">CONFIRM</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Start/Select -->
+        <div class="flex justify-center gap-8 mb-8">
+            <div class="text-center">
+                <button onclick="sendInput('select')" class="gb-button w-12 h-3 bg-gray-600 rounded-full shadow-md"></button>
+                <div class="text-[10px] text-gray-400 mt-1 uppercase">Select</div>
+            </div>
+            <div class="text-center">
+                <button onclick="sendInput('start')" class="gb-button w-12 h-3 bg-gray-600 rounded-full shadow-md"></button>
+                <div class="text-[10px] text-gray-400 mt-1 uppercase">Start</div>
+            </div>
+        </div>
+
+        <!-- Input Log -->
+        <div class="bg-black rounded-lg p-3">
+            <div class="text-[10px] text-green-500 mb-2 border-b border-green-900 pb-1">LIVE INPUT LOG</div>
+            <div id="log" class="log-container text-xs font-mono text-green-400">
+                <div>Waiting for players...</div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Set this to your server's IP address
+        const socket = io('http://localhost:3000');
+        const statusEl = document.getElementById('status');
+        const logEl = document.getElementById('log');
+
+        socket.on('connect', () => {
+            statusEl.innerText = 'Connected to Server';
+            statusEl.className = 'text-center text-xs mb-4 text-green-400';
+            addLog("System", "Connection established.");
+        });
+
+        socket.on('disconnect', () => {
+            statusEl.innerText = 'Disconnected from Server';
+            statusEl.className = 'text-center text-xs mb-4 text-red-400';
+        });
+
+        function sendInput(key) {
+            socket.emit('input', key);
+            addLog("You", `Pressed ${key.toUpperCase()}`);
+        }
+
+        // Listen for other players' inputs (if server broadcasts them)
+        socket.on('broadcastInput', (data) => {
+            addLog(data.user || "Trainer", `Pressed ${data.key.toUpperCase()}`);
+        });
+
+        function addLog(user, message) {
+            const entry = document.createElement('div');
+            entry.className = "mb-1";
+            entry.innerHTML = `<span class="opacity-50">[${new Date().toLocaleTimeString([], {hour12: false})}]</span> <strong>${user}:</strong> ${message}`;
+            logEl.prepend(entry);
+        }
+
+        // Handle Keyboard Support
+        const keyMap = {
+            'ArrowUp': 'up',
+            'ArrowDown': 'down',
+            'ArrowLeft': 'left',
+            'ArrowRight': 'right',
+            'z': 'a',
+            'x': 'b',
+            'Enter': 'start',
+            'Shift': 'select'
+        };
+
+        window.addEventListener('keydown', (e) => {
+            if (keyMap[e.key]) {
+                sendInput(keyMap[e.key]);
+            }
+        });
+    </script>
+</body>
+</html>
